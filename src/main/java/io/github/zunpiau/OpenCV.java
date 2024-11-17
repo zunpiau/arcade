@@ -8,10 +8,8 @@ import org.opencv.core.MatOfByte;
 import org.opencv.imgcodecs.Imgcodecs;
 import org.opencv.imgproc.Imgproc;
 
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.InputStream;
-import java.io.OutputStream;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 
 public class OpenCV {
 
@@ -37,35 +35,25 @@ public class OpenCV {
 
     @SneakyThrows
     private static void loadLib() {
+        String opencv = System.getProperty("arcade.opencv");
+        if (opencv != null && !opencv.isEmpty()) {
+            System.load(opencv);
+            return;
+        }
         String protocol = OpenCV.class.getResource("/" + OpenCV.class.getName().replace('.', '/') + ".class").getProtocol();
         if (protocol.equals("file")) {
             System.loadLibrary(Core.NATIVE_LIBRARY_NAME);
         } else {
             String os = System.getProperty("os.name").toLowerCase();
-            String path;
-            String suffix;
+            Path path;
             if (os.contains("linux")) {
-                path = "/nu/pattern/opencv/linux/x86_64/libopencv_java490.so";
-                suffix = ".so";
+                path = Paths.get("lib", "libopencv_java490.so");
             } else if (os.contains("windows")) {
-                path = "/nu/pattern/opencv/windows/x86_64/opencv_java490.dll";
-                suffix = ".dll";
+                path = Paths.get("lib", "opencv_java490.dll");
             } else {
                 throw new IllegalStateException("Unsupported platform");
             }
-            InputStream is = OpenCV.class.getResourceAsStream(path);
-            assert is != null;
-            File file = File.createTempFile("arcade", suffix);
-            try (OutputStream outputStream = new FileOutputStream(file)) {
-                byte[] buffer = new byte[4096];
-                int bytesRead;
-                while ((bytesRead = is.read(buffer)) != -1) {
-                    outputStream.write(buffer, 0, bytesRead);
-                }
-            }
-            is.close();
-            System.load(file.getAbsolutePath());
-            file.deleteOnExit();
+            System.load(path.toAbsolutePath().toString());
         }
     }
 }
