@@ -1,8 +1,12 @@
 package io.github.zunpiau;
 
+import com.sun.jna.Memory;
+import com.sun.jna.Native;
 import com.sun.jna.platform.unix.X11;
 import com.sun.jna.platform.win32.*;
 import com.sun.jna.ptr.IntByReference;
+import com.sun.jna.win32.StdCallLibrary;
+import com.sun.jna.win32.W32APIOptions;
 import io.github.kingpulse.XFacade;
 import io.github.kingpulse.structs.xdo_search_t;
 import io.github.kingpulse.structs.xdo_t;
@@ -12,7 +16,7 @@ import lombok.SneakyThrows;
 
 import javax.imageio.ImageIO;
 import java.awt.*;
-import java.awt.image.BufferedImage;
+import java.awt.image.*;
 import java.io.ByteArrayOutputStream;
 import java.util.concurrent.TimeUnit;
 
@@ -43,23 +47,7 @@ public abstract class Env {
         }
     }
 
-    private static final Robot robot;
-
-    static {
-        try {
-            robot = new Robot();
-        } catch (AWTException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    @SneakyThrows
-    byte[] capture(int x, int y, int w, int h) {
-        BufferedImage image = robot.createScreenCapture(new Rectangle(x, y, w, h));
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        ImageIO.write(image, "bmp", baos);
-        return baos.toByteArray();
-    }
+    abstract byte[] capture(int x, int y, int w, int h);
 
     abstract void press(Character key);
 
@@ -69,10 +57,12 @@ public abstract class Env {
 
         private final xdotool lib = xdotool.loadLib();
         private final xdo_t xdo;
+        private final Robot robot;
 
         private final X11.Window window;
         private final Point windowPosition;
 
+        @SneakyThrows
         public LinuxX11() {
             X11 x11 = X11.INSTANCE;
             X11.Display display = x11.XOpenDisplay(null);
@@ -103,11 +93,16 @@ public abstract class Env {
                 System.exit(3);
             }
             windowPosition = new Point(x.getValue(), y.getValue());
+            robot = new Robot();
         }
 
         @Override
+        @SneakyThrows
         byte[] capture(int x, int y, int w, int h) {
-            return super.capture(windowPosition.x + x, windowPosition.y + y, w, h);
+            BufferedImage image = robot.createScreenCapture(new Rectangle(windowPosition.x + x, windowPosition.y + y, w, h));
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            ImageIO.write(image, "bmp", baos);
+            return baos.toByteArray();
         }
 
         @Override
@@ -128,10 +123,12 @@ public abstract class Env {
     private static class Win extends Env {
 
         private final User32 user32 = User32.INSTANCE;
+        private final User32Ext user32Ext = User32Ext.INSTANCE;
+        private final GDI32 gdi32 = GDI32.INSTANCE;
 
         private final WinDef.HWND window;
-        private final Point windowPosition;
 
+        @SneakyThrows
         public Win() {
             String windowTitle = System.getProperty(WINDOW_TITLE_KEY, "NIKKE");
             window = user32.FindWindow("UnityWndClass", windowTitle);
@@ -139,39 +136,66 @@ public abstract class Env {
                 System.err.println("根据窗口标题[" + windowTitle + "]找不到进程，请确认是否启动");
                 System.exit(1);
             }
-            char[] className = new char[128];
-            user32.GetClassName(window, className, className.length);
-            System.out.println(className);
             WinDef.RECT rect = new WinDef.RECT();
-            user32.GetWindowRect(window, rect);
-            System.out.println(rect);
-            WinUser.WINDOWINFO windowinfo = new WinUser.WINDOWINFO();
-            user32.GetWindowInfo(window, windowinfo);
-            System.out.println(windowinfo);
+            user32.GetClientRect(window, rect);
+            int width = rect.right - rect.left;
+            int height = rect.bottom - rect.top;
+            if (width != 1920 || height != 1080) {
+                System.out.println("1080P屏幕请以全屏幕模式运行；否则使用视窗模式，画面比例选择为16:9");
+                System.out.println("正在尝试缩放窗口...");
+                user32.MoveWindow(window, 0, 0, 1920, 1080, true);
+                TimeUnit.MILLISECONDS.sleep(10);
+                user32.GetClientRect(window, rect);
+                user32.MoveWindow(window, 0, 0, 1920 + 1920 - rect.right, 1080 + 1080 - rect.bottom, true);
+                user32.GetClientRect(window, rect);
+                System.out.println("当前分辨率：" + rect.right + "x" + rect.bottom);
+            }
             IntByReference processId = new IntByReference();
             user32.GetWindowThreadProcessId(window, processId);
-            System.out.println(processId.getValue());
-
             long pid = Kernel32.INSTANCE.GetCurrentThreadId();
-            System.out.println(pid);
-
-            System.out.println(user32.AttachThreadInput(new WinDef.DWORD(processId.getValue()), new WinDef.DWORD(pid), true));
+            user32.AttachThreadInput(new WinDef.DWORD(processId.getValue()), new WinDef.DWORD(pid), true);
             user32.SetForegroundWindow(window);
             user32.SetFocus(window);
-            System.out.println(user32.AttachThreadInput(new WinDef.DWORD(processId.getValue()), new WinDef.DWORD(pid), false));
-
-//            int width = rect.right - rect.left;
-//            int height = rect.bottom - rect.top;
-//            if (width != 1920 || height != 1080) {
-//                System.err.println("仅支持1080P分辨率");
-//                System.exit(3);
-//            }
-            windowPosition = new Point(rect.left, rect.top);
+            user32.AttachThreadInput(new WinDef.DWORD(processId.getValue()), new WinDef.DWORD(pid), false);
         }
 
-        @Override
-        byte[] capture(int x, int y, int w, int h) {
-            return super.capture(windowPosition.x + x, windowPosition.y + y, w, h);
+        @SneakyThrows
+        public byte[] capture(int x, int y, int w, int h) {
+            WinDef.HDC hScreenDC = user32.GetDC(null);
+            WinDef.HDC hMemoryDC = gdi32.CreateCompatibleDC(hScreenDC);
+
+            WinDef.HBITMAP hBitmap = gdi32.CreateCompatibleBitmap(hScreenDC, w, h);
+            gdi32.SelectObject(hMemoryDC, hBitmap);
+            WinDef.POINT point = new WinDef.POINT(x, y);
+            user32Ext.ClientToScreen(window, point);
+            gdi32.BitBlt(hMemoryDC, 0, 0, w, h, hScreenDC, point.x, point.y, GDI32.SRCCOPY);
+
+            WinGDI.BITMAPINFO bmi = new WinGDI.BITMAPINFO();
+            bmi.bmiHeader.biWidth = w;
+            bmi.bmiHeader.biHeight = -h;
+            bmi.bmiHeader.biPlanes = 1;
+            bmi.bmiHeader.biBitCount = 32;
+            bmi.bmiHeader.biCompression = WinGDI.BI_RGB;
+
+            Memory buffer = new Memory(w * h * 4L);
+            gdi32.GetDIBits(hScreenDC, hBitmap, 0, h, buffer, bmi, WinGDI.DIB_RGB_COLORS);
+            int bufferSize = w * h;
+            DataBuffer dataBuffer = new DataBufferInt(buffer.getIntArray(0, bufferSize), bufferSize);
+            DirectColorModel SCREENSHOT_COLOR_MODEL = new DirectColorModel(24, 0x00FF0000, 0xFF00, 0xFF);
+            WritableRaster raster = Raster.createPackedRaster(dataBuffer, w, h, w,
+                    new int[]{
+                            SCREENSHOT_COLOR_MODEL.getRedMask(),
+                            SCREENSHOT_COLOR_MODEL.getGreenMask(),
+                            SCREENSHOT_COLOR_MODEL.getBlueMask()
+                    }, null);
+            BufferedImage image = new BufferedImage(SCREENSHOT_COLOR_MODEL, raster, false, null);
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            ImageIO.write(image, "bmp", baos);
+            byte[] bytes = baos.toByteArray();
+            gdi32.DeleteObject(hBitmap);
+            gdi32.DeleteDC(hMemoryDC);
+            user32.ReleaseDC(null, hScreenDC);
+            return bytes;
         }
 
         @Override
@@ -192,16 +216,25 @@ public abstract class Env {
 
         @Override
         void click(int x, int y) {
+            WinDef.POINT point = new WinDef.POINT(x, y);
+            user32Ext.ClientToScreen(window, point);
+            user32.SetCursorPos(point.x, point.y);
             WinUser.INPUT input = new WinUser.INPUT();
             input.type = new WinDef.DWORD(WinUser.INPUT.INPUT_MOUSE);
             input.input.setType("mi");
-            input.input.mi.dx = new WinDef.LONG(x);
-            input.input.mi.dy = new WinDef.LONG(y);
+            input.input.mi.dx = new WinDef.LONG(point.x);
+            input.input.mi.dy = new WinDef.LONG(point.y);
             input.input.mi.dwFlags = new WinDef.DWORD(2);
             user32.SendInput(new WinDef.DWORD(1), (WinUser.INPUT[]) input.toArray(1), input.size());
             input.input.mi.dwFlags = new WinDef.DWORD(4);
             user32.SendInput(new WinDef.DWORD(1), (WinUser.INPUT[]) input.toArray(1), input.size());
         }
+    }
+
+    interface User32Ext extends StdCallLibrary {
+        User32Ext INSTANCE = Native.load("user32", User32Ext.class, W32APIOptions.DEFAULT_OPTIONS);
+
+        boolean ClientToScreen(WinDef.HWND hWnd, WinDef.POINT lpPoint);
     }
 
 }
