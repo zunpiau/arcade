@@ -43,6 +43,7 @@
     </dependencies>
 
     <build>
+        <finalName>${project.artifactId}</finalName>
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -100,6 +101,12 @@
                                         <exclude>nu/pattern/opencv/**</exclude>
                                     </excludes>
                                 </filter>
+                                <filter>
+                                    <artifact>*:*</artifact>
+                                    <excludes>
+                                        <exclude>README.md</exclude>
+                                    </excludes>
+                                </filter>
                             </filters>
                         </configuration>
                     </execution>
@@ -118,6 +125,7 @@
                         </goals>
                         <configuration>
                             <appendAssemblyId>false</appendAssemblyId>
+                            <finalName>${project.artifactId}-${project.version}</finalName>
                             <inlineDescriptors>
                                 <inlineDescriptor>
                                     <id>zip</id>
@@ -151,6 +159,8 @@
                                             <directory>${project.basedir}</directory>
                                             <includes>
                                                 <include>giftFactory/template/**</include>
+                                                <include>README.md</include>
+                                                <include>start.bat</include>
                                             </includes>
                                             <outputDirectory>/</outputDirectory>
                                         </fileSet>
