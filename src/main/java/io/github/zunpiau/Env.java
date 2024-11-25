@@ -130,6 +130,11 @@ public abstract class Env {
 
         @SneakyThrows
         public Win() {
+            if (!Advapi32Util.isCurrentProcessElevated()) {
+                System.err.println("请以管理员身份运行 CMD/PowerShell");
+                System.exit(2);
+            }
+            System.out.println("请保持游戏画面在屏幕上层；或者在设定 - 画质中勾选“总是在上”");
             String windowTitle = System.getProperty(WINDOW_TITLE_KEY, "NIKKE");
             window = user32.FindWindow("UnityWndClass", windowTitle);
             if (window == null) {
@@ -150,6 +155,7 @@ public abstract class Env {
                 user32.GetClientRect(window, rect);
                 System.out.println("当前分辨率：" + rect.right + "x" + rect.bottom);
             }
+
             IntByReference processId = new IntByReference();
             user32.GetWindowThreadProcessId(window, processId);
             long pid = Kernel32.INSTANCE.GetCurrentThreadId();

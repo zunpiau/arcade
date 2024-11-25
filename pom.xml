@@ -117,6 +117,7 @@
                             <goal>single</goal>
                         </goals>
                         <configuration>
+                            <appendAssemblyId>false</appendAssemblyId>
                             <inlineDescriptors>
                                 <inlineDescriptor>
                                     <id>zip</id>
@@ -149,7 +150,6 @@
                                         <fileSet>
                                             <directory>${project.basedir}</directory>
                                             <includes>
-                                                <include>giftFactory/debug/*</include>
                                                 <include>giftFactory/template/**</include>
                                             </includes>
                                             <outputDirectory>/</outputDirectory>

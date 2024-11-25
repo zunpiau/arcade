@@ -1,60 +1,99 @@
 package io.github.zunpiau;
 
+import lombok.SneakyThrows;
 import org.opencv.core.Mat;
 import org.opencv.imgcodecs.Imgcodecs;
 
-import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class GiftFactory {
 
     private static final Path DEBUG_DIR = Paths.get("giftFactory", "debug");
-    private static final boolean DEBUG = false;
-    private static final int ROUND_MS = 250;
-    private static final int BURST_MS = 5000 - ROUND_MS * 2;
+    private static final boolean DEBUG = Boolean.getBoolean("arcade.debug");
 
+    private static int COUNTER = 0;
 
-    public static void main(String[] args) throws IOException, InterruptedException {
-        cleanupDebugDir();
-        List<ImgTemplate> templates = setupTemplate();
+    public static void main(String[] args) throws InterruptedException {
+        int ROUND_MS = parseRoundMs(args);
+        int BURST_MS = 5000 - ROUND_MS;
+
+        Map<Type, List<ImgTemplate>> allTemplates = setupTemplate();
+        List<ImgTemplate> startImgTemps = allTemplates.remove(Type.start);
+        List<ImgTemplate> templates = allTemplates.values().stream().flatMap(List::stream).toList();
+        setupDebugDir();
         Env env = Env.getInstance();
 
+        System.out.println("正在检测游戏开始...");
+        int i = 0, maxDetect = 200;
+        while (++i < maxDetect) {
+            byte[] capture = env.capture(0, 0, 145, 85);
+            Mat mat = OpenCV.decode(capture, Imgcodecs.IMREAD_GRAYSCALE);
+            MatchResult result = match(mat, startImgTemps);
+            writeDebug(Type.start, result.template, result.val, capture);
+            if (result.match) {
+                break;
+            }
+            TimeUnit.MILLISECONDS.sleep(ROUND_MS);
+        }
+        if (i == maxDetect) {
+            System.out.println("检测超时，自动退出");
+            System.exit(1);
+        }
+
+        System.out.println("游戏开始");
         long lastRound, lastBurst = 0;
+        boolean paused = false;
         //noinspection InfiniteLoopStatement
         while (true) {
             lastRound = System.currentTimeMillis();
-            byte[] capture = env.capture(830, 530, 320, 260);
+            byte[] capture = env.capture(800, 520, 320, 320);
             Mat mat = OpenCV.decode(capture, Imgcodecs.IMREAD_GRAYSCALE);
-            Type type = match(mat, capture, templates, lastRound);
+            MatchResult result = match(mat, templates);
+            Type type = result.match ? result.template.type : Type.gift;
+            writeDebug(type, result.template, result.val, capture);
+
+            if (type != Type.pause && paused) {
+                System.out.println("游戏恢复");
+            } else if (type == Type.pause && !paused) {
+                System.out.println("游戏暂停");
+            }
+            paused = type == Type.pause;
             switch (type) {
                 case gold -> {
                     if (lastRound - lastBurst < 5000) {
-                        System.out.println("BURST ignore");
                         env.press('A');
                     } else {
+                        System.out.println("BURST 开始");
                         do {
                             env.press('A');
                             TimeUnit.MILLISECONDS.sleep(1);
                         } while (System.currentTimeMillis() - lastRound <= BURST_MS);
                         lastBurst = System.currentTimeMillis();
+                        System.out.println("BURST 结束");
                         continue;
                     }
                 }
                 case end -> {
-                    System.out.println("Waiting...");
-                    TimeUnit.MILLISECONDS.sleep(5000);
+                    System.out.println("回合结束，将在5秒后进入下一回合。按下 Ctrl+C 或者关闭窗口以结束脚本");
+                    TimeUnit.SECONDS.sleep(5);
                     env.click(1052, 714);
-                    TimeUnit.MILLISECONDS.sleep(3200);
+                    System.out.println("进入下一回合");
+                    TimeUnit.SECONDS.sleep(3);
                     continue;
                 }
                 case gift -> env.press('A');
                 case rapture -> env.press('D');
             }
+
             long remain = ROUND_MS - System.currentTimeMillis() + lastRound;
             if (remain > 0) {
                 TimeUnit.MILLISECONDS.sleep(remain);
@@ -62,67 +101,102 @@ public class GiftFactory {
         }
     }
 
-    @SuppressWarnings("resource")
-    private static List<ImgTemplate> setupTemplate() throws IOException {
-        List<ImgTemplate> templates = new ArrayList<>();
-        Files.list(Paths.get("giftFactory", "template")).forEach(d -> {
+    private static int parseRoundMs(String[] args) {
+        int DEFAULT_ROUND_MS = 320;
+        if (args.length == 1) {
             try {
-                Type type = Type.valueOf(d.getFileName().toString());
-                Files.list(d).forEach(f -> templates.add(new ImgTemplate(f.getFileName().toString(),
-                        OpenCV.read(f.toString(), Imgcodecs.IMREAD_GRAYSCALE), type)));
-            } catch (IOException e) {
-                throw new RuntimeException(e);
+                int i = Integer.parseInt(args[0]);
+                return Math.max(Math.min(i, 500), 100);
+            } catch (NumberFormatException ignore) {
+                return DEFAULT_ROUND_MS;
             }
-        });
-        return templates;
+        }
+        return DEFAULT_ROUND_MS;
     }
 
-    @SuppressWarnings("resource")
-    private static void cleanupDebugDir() throws IOException {
+    private static Map<Type, List<ImgTemplate>> setupTemplate() {
+        Map<Type, List<ImgTemplate>> res = new HashMap<>();
+        listDir(Paths.get("giftFactory", "template")).forEach(d -> {
+            if (!Files.isDirectory(d)) {
+                return;
+            }
+            Type type = Type.valueOf(d.getFileName().toString());
+            List<ImgTemplate> templates = listDir(d)
+                    .map(f -> new ImgTemplate(f.getFileName().toString(), OpenCV.read(f.toString(), Imgcodecs.IMREAD_GRAYSCALE), type))
+                    .toList();
+            res.put(type, templates);
+        });
+        return res;
+    }
+
+    @SneakyThrows
+    private static void setupDebugDir() {
         if (!DEBUG) {
             return;
         }
-        Files.list(DEBUG_DIR).forEach(d -> {
-            try {
-                Files.list(d).forEach(f -> {
-                    try {
-                        Files.delete(f);
-                    } catch (IOException e) {
-                        throw new RuntimeException(e);
-                    }
-                });
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-        });
+        Set<String> types = Stream.of(Type.values()).map(Type::name).collect(Collectors.toSet());
+        if (!Files.exists(DEBUG_DIR)) {
+            Files.createDirectories(DEBUG_DIR);
+        } else {
+            listDir(DEBUG_DIR).filter(Files::isDirectory).forEach(p -> {
+                cleanDir(p);
+                types.remove(p.getFileName().toString());
+            });
+        }
+        types.forEach(t -> createDir(DEBUG_DIR.resolve(t)));
     }
 
-    private static Type match(Mat mat, byte[] capture, List<ImgTemplate> templates, long now) throws IOException {
-        double maxVal = 0;
-        String maxFilename = "";
+
+    @SneakyThrows
+    private static Stream<Path> listDir(Path d) {
+        return Files.list(d);
+    }
+
+    private static void cleanDir(Path p) {
+        listDir(p).forEach(GiftFactory::deleteFile);
+    }
+
+    @SneakyThrows
+    private static void deleteFile(Path f) {
+        Files.delete(f);
+    }
+
+    @SneakyThrows
+    private static void createDir(Path dir) {
+        Files.createDirectories(dir);
+    }
+
+    @SneakyThrows
+    private static MatchResult match(Mat mat, List<ImgTemplate> templates) {
+        double maxVal = Double.NEGATIVE_INFINITY;
+        ImgTemplate maxTemplate = null;
         for (ImgTemplate template : templates) {
             double val = OpenCV.match(mat, template.img).maxVal;
             if (val > template.type.threshold) {
-                if (DEBUG) {
-                    Files.write(DEBUG_DIR.resolve(template.type.name())
-                            .resolve(now + "_" + template.filename + "_" + val + ".bmp"), capture);
-                }
-                return template.type;
+                return new MatchResult(true, template, val);
             }
             if (val > maxVal) {
-                maxFilename = template.filename;
+                maxTemplate = template;
                 maxVal = val;
             }
         }
-        if (DEBUG) {
-            Files.write(DEBUG_DIR.resolve(Type.gift.name())
-                    .resolve(now + "_" + maxFilename + "_" + maxVal + ".bmp"), capture);
-        }
-        return Type.gift;
+        return new MatchResult(false, maxTemplate, maxVal);
     }
 
+    @SneakyThrows
+    private static void writeDebug(Type type, ImgTemplate template, double val, byte[] capture) {
+        if (!DEBUG || template == null) {
+            return;
+        }
+        String filename = "%05d_%s_%s_%.3f.bmp".formatted(COUNTER++, template.type.name(), template.filename, val);
+        Files.write(DEBUG_DIR.resolve(type.name()).resolve(filename), capture);
+    }
 
     private record ImgTemplate(String filename, Mat img, Type type) {
+
+    }
+
+    private record MatchResult(boolean match, ImgTemplate template, double val) {
 
     }
 
@@ -130,8 +204,10 @@ public class GiftFactory {
 
         end(0.75),
         gold(0.75),
-        rapture(0.48),
+        rapture(0.5),
         gift(1),
+        start(0.8),
+        pause(0.9),
         ;
         private final double threshold;
 
