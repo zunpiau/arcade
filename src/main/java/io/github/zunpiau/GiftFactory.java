@@ -23,8 +23,9 @@ public class GiftFactory {
     private static int COUNTER = 0;
 
     public static void main(String[] args) throws InterruptedException {
-        int ROUND_MS = parseRoundMs(args);
-        int BURST_MS = 5000 - ROUND_MS;
+        int ROUND_MS = parseArg(args,  0, 100, 500, 300);
+        int BURST_MS = 5000 - ROUND_MS / 2;
+        int BURST_INTERVAL = parseArg(args,  1, 1, 12, 6);
 
         Map<Type, List<ImgTemplate>> allTemplates = setupTemplate();
         List<ImgTemplate> startImgTemps = allTemplates.remove(Type.start);
@@ -75,7 +76,7 @@ public class GiftFactory {
                         System.out.println("BURST 开始");
                         do {
                             env.press('A');
-                            TimeUnit.MILLISECONDS.sleep(1);
+                            TimeUnit.MILLISECONDS.sleep(BURST_INTERVAL);
                         } while (System.currentTimeMillis() - lastRound <= BURST_MS);
                         lastBurst = System.currentTimeMillis();
                         System.out.println("BURST 结束");
@@ -83,8 +84,9 @@ public class GiftFactory {
                     }
                 }
                 case end -> {
-                    System.out.println("回合结束，将在5秒后进入下一回合。按下 Ctrl+C 或者关闭窗口以结束脚本");
-                    TimeUnit.SECONDS.sleep(5);
+                    int timeout = lastBurst == 0 ? 1 : 5;
+                    System.out.printf("回合结束，将在%d秒后进入下一回合。按下 Ctrl+C 或者关闭窗口以结束脚本\n", timeout);
+                    TimeUnit.SECONDS.sleep(timeout);
                     env.click(1052, 714);
                     System.out.println("进入下一回合");
                     TimeUnit.SECONDS.sleep(3);
@@ -101,17 +103,16 @@ public class GiftFactory {
         }
     }
 
-    private static int parseRoundMs(String[] args) {
-        int DEFAULT_ROUND_MS = 320;
-        if (args.length == 1) {
+    private static int parseArg(String[] args, int idx, int min, int max, int defaultVal) {
+        if (args.length >= idx + 1) {
             try {
-                int i = Integer.parseInt(args[0]);
-                return Math.max(Math.min(i, 500), 100);
+                int i = Integer.parseInt(args[idx]);
+                return Math.max(Math.min(i, max), min);
             } catch (NumberFormatException ignore) {
-                return DEFAULT_ROUND_MS;
+                return defaultVal;
             }
         }
-        return DEFAULT_ROUND_MS;
+        return defaultVal;
     }
 
     private static Map<Type, List<ImgTemplate>> setupTemplate() {

@@ -108,7 +108,7 @@ public abstract class Env {
         @Override
         @SneakyThrows
         void press(Character key) {
-            lib.xdo_send_keysequence_window(xdo, window, String.valueOf(key), 12000);
+            lib.xdo_send_keysequence_window(xdo, window, String.valueOf(key), 2000);
         }
 
         @Override
@@ -134,7 +134,6 @@ public abstract class Env {
                 System.err.println("请以管理员身份运行 CMD/PowerShell");
                 System.exit(2);
             }
-            System.out.println("请保持游戏画面在屏幕上层；或者在设定 - 画质中勾选“总是在上”");
             String windowTitle = System.getProperty(WINDOW_TITLE_KEY, "NIKKE");
             window = user32.FindWindow("UnityWndClass", windowTitle);
             if (window == null) {
@@ -156,6 +155,8 @@ public abstract class Env {
                 System.out.println("当前分辨率：" + rect.right + "x" + rect.bottom);
             }
 
+            System.out.println("本窗口将自动置底...");
+            TimeUnit.SECONDS.sleep(3);
             IntByReference processId = new IntByReference();
             user32.GetWindowThreadProcessId(window, processId);
             long pid = Kernel32.INSTANCE.GetCurrentThreadId();
@@ -206,18 +207,10 @@ public abstract class Env {
 
         @Override
         void press(Character key) {
-            WinUser.INPUT input = new WinUser.INPUT();
-            input.type = new WinDef.DWORD(WinUser.INPUT.INPUT_KEYBOARD);
-            input.input.setType("ki");
-            input.input.ki.wScan = new WinDef.WORD(0);
-            input.input.ki.time = new WinDef.DWORD(0);
-            input.input.ki.dwExtraInfo = new BaseTSD.ULONG_PTR(0);
-            input.input.ki.wVk = new WinDef.WORD(key);
-            input.input.ki.dwFlags = new WinDef.DWORD(0);
-            user32.SendInput(new WinDef.DWORD(1), (WinUser.INPUT[]) input.toArray(1), input.size());
-            input.input.ki.wVk = new WinDef.WORD(key);
-            input.input.ki.dwFlags = new WinDef.DWORD(2);
-            user32.SendInput(new WinDef.DWORD(1), (WinUser.INPUT[]) input.toArray(1), input.size());
+            WinUser.INPUT[] inputs = (WinUser.INPUT[]) new WinUser.INPUT().toArray(2);
+            fillInput(inputs[0], key, 0);
+            fillInput(inputs[1], key, WinUser.KEYBDINPUT.KEYEVENTF_KEYUP);
+            user32.SendInput(new WinDef.DWORD(2), inputs, inputs[0].size());
         }
 
         @Override
@@ -234,6 +227,16 @@ public abstract class Env {
             user32.SendInput(new WinDef.DWORD(1), (WinUser.INPUT[]) input.toArray(1), input.size());
             input.input.mi.dwFlags = new WinDef.DWORD(4);
             user32.SendInput(new WinDef.DWORD(1), (WinUser.INPUT[]) input.toArray(1), input.size());
+        }
+
+        private static void fillInput(WinUser.INPUT input, Character key, int flag) {
+            input.type = new WinDef.DWORD(WinUser.INPUT.INPUT_KEYBOARD);
+            input.input.setType("ki");
+            input.input.ki.wScan = new WinDef.WORD(0);
+            input.input.ki.time = new WinDef.DWORD(0);
+            input.input.ki.dwExtraInfo = new BaseTSD.ULONG_PTR(0);
+            input.input.ki.wVk = new WinDef.WORD(key);
+            input.input.ki.dwFlags = new WinDef.DWORD(flag);
         }
     }
 
