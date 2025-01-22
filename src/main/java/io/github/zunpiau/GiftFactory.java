@@ -10,10 +10,7 @@ import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 public class GiftFactory {
 
@@ -23,15 +20,17 @@ public class GiftFactory {
     private static int COUNTER = 0;
 
     public static void main(String[] args) throws InterruptedException {
-        int ROUND_MS = parseArg(args,  0, 100, 500, 300);
+        int ROUND_MS = Util.parseArg(args, 0, 100, 500, 250);
         int BURST_MS = 5000 - ROUND_MS / 2;
-        int BURST_INTERVAL = parseArg(args,  1, 1, 12, 6);
+        int BURST_INTERVAL = Util.parseArg(args, 1, 1, 12, 2);
 
         Map<Type, List<ImgTemplate>> allTemplates = setupTemplate();
         List<ImgTemplate> startImgTemps = allTemplates.remove(Type.start);
         List<ImgTemplate> templates = allTemplates.values().stream().flatMap(List::stream).toList();
-        setupDebugDir();
         Env env = Env.getInstance();
+        if (DEBUG) {
+            Util.setupDebugDir(DEBUG_DIR, Type.class);
+        }
 
         System.out.println("正在检测游戏开始...");
         int i = 0, maxDetect = 200;
@@ -71,11 +70,11 @@ public class GiftFactory {
             switch (type) {
                 case gold -> {
                     if (lastRound - lastBurst < 5000) {
-                        env.press('A');
+                        env.press("A");
                     } else {
                         System.out.println("BURST 开始");
                         do {
-                            env.press('A');
+                            env.press("A");
                             TimeUnit.MILLISECONDS.sleep(BURST_INTERVAL);
                         } while (System.currentTimeMillis() - lastRound <= BURST_MS);
                         lastBurst = System.currentTimeMillis();
@@ -92,8 +91,8 @@ public class GiftFactory {
                     TimeUnit.SECONDS.sleep(3);
                     continue;
                 }
-                case gift -> env.press('A');
-                case rapture -> env.press('D');
+                case gift -> env.press("A");
+                case rapture -> env.press("D");
             }
 
             long remain = ROUND_MS - System.currentTimeMillis() + lastRound;
@@ -103,26 +102,14 @@ public class GiftFactory {
         }
     }
 
-    private static int parseArg(String[] args, int idx, int min, int max, int defaultVal) {
-        if (args.length >= idx + 1) {
-            try {
-                int i = Integer.parseInt(args[idx]);
-                return Math.max(Math.min(i, max), min);
-            } catch (NumberFormatException ignore) {
-                return defaultVal;
-            }
-        }
-        return defaultVal;
-    }
-
     private static Map<Type, List<ImgTemplate>> setupTemplate() {
         Map<Type, List<ImgTemplate>> res = new HashMap<>();
-        listDir(Paths.get("giftFactory", "template")).forEach(d -> {
+        Util.listDir(Paths.get("giftFactory", "template")).forEach(d -> {
             if (!Files.isDirectory(d)) {
                 return;
             }
             Type type = Type.valueOf(d.getFileName().toString());
-            List<ImgTemplate> templates = listDir(d)
+            List<ImgTemplate> templates = Util.listDir(d)
                     .map(f -> new ImgTemplate(f.getFileName().toString(), OpenCV.read(f.toString(), Imgcodecs.IMREAD_GRAYSCALE), type))
                     .toList();
             res.put(type, templates);
@@ -130,49 +117,13 @@ public class GiftFactory {
         return res;
     }
 
-    @SneakyThrows
-    private static void setupDebugDir() {
-        if (!DEBUG) {
-            return;
-        }
-        Set<String> types = Stream.of(Type.values()).map(Type::name).collect(Collectors.toSet());
-        if (!Files.exists(DEBUG_DIR)) {
-            Files.createDirectories(DEBUG_DIR);
-        } else {
-            listDir(DEBUG_DIR).filter(Files::isDirectory).forEach(p -> {
-                cleanDir(p);
-                types.remove(p.getFileName().toString());
-            });
-        }
-        types.forEach(t -> createDir(DEBUG_DIR.resolve(t)));
-    }
-
-
-    @SneakyThrows
-    private static Stream<Path> listDir(Path d) {
-        return Files.list(d);
-    }
-
-    private static void cleanDir(Path p) {
-        listDir(p).forEach(GiftFactory::deleteFile);
-    }
-
-    @SneakyThrows
-    private static void deleteFile(Path f) {
-        Files.delete(f);
-    }
-
-    @SneakyThrows
-    private static void createDir(Path dir) {
-        Files.createDirectories(dir);
-    }
 
     @SneakyThrows
     private static MatchResult match(Mat mat, List<ImgTemplate> templates) {
         double maxVal = Double.NEGATIVE_INFINITY;
         ImgTemplate maxTemplate = null;
         for (ImgTemplate template : templates) {
-            double val = OpenCV.match(mat, template.img).maxVal;
+            double val = OpenCV.match(mat, template.img, null).maxVal;
             if (val > template.type.threshold) {
                 return new MatchResult(true, template, val);
             }

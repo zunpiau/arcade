@@ -49,7 +49,7 @@ public abstract class Env {
 
     abstract byte[] capture(int x, int y, int w, int h);
 
-    abstract void press(Character key);
+    abstract void press(String keys);
 
     abstract void click(int x, int y);
 
@@ -106,9 +106,12 @@ public abstract class Env {
         }
 
         @Override
-        @SneakyThrows
-        void press(Character key) {
-            lib.xdo_send_keysequence_window(xdo, window, String.valueOf(key), 2000);
+        void press(String keys) {
+            if (keys.length() == 1) {
+                lib.xdo_send_keysequence_window(xdo, window, keys, 2000);
+            } else {
+                lib.xdo_enter_text_window(xdo, window, keys, 1000);
+            }
         }
 
         @Override
@@ -205,12 +208,16 @@ public abstract class Env {
             return bytes;
         }
 
-        @Override
         void press(Character key) {
             WinUser.INPUT[] inputs = (WinUser.INPUT[]) new WinUser.INPUT().toArray(2);
             fillInput(inputs[0], key, 0);
             fillInput(inputs[1], key, WinUser.KEYBDINPUT.KEYEVENTF_KEYUP);
             user32.SendInput(new WinDef.DWORD(2), inputs, inputs[0].size());
+        }
+
+        @Override
+        void press(String keys) {
+            keys.chars().forEach(c -> press((char) c));
         }
 
         @Override

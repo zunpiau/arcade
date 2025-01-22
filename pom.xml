@@ -6,7 +6,7 @@
 
     <groupId>io.github.zunpiau</groupId>
     <artifactId>arcade</artifactId>
-    <version>1.0.1</version>
+    <version>1.1.0</version>
 
     <properties>
         <maven.compiler.source>21</maven.compiler.source>
@@ -82,7 +82,7 @@
                     <transformers>
                         <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
                             <manifestEntries>
-                                <Main-Class>io.github.zunpiau.GiftFactory</Main-Class>
+                                <Main-Class>io.github.zunpiau.Launcher</Main-Class>
                             </manifestEntries>
                         </transformer>
                     </transformers>
@@ -159,6 +159,7 @@
                                             <directory>${project.basedir}</directory>
                                             <includes>
                                                 <include>giftFactory/template/**</include>
+                                                <include>dessertRush/template/**</include>
                                                 <include>README.md</include>
                                                 <include>start.bat</include>
                                             </includes>

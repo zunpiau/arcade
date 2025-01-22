@@ -10,6 +10,7 @@ import org.opencv.imgproc.Imgproc;
 
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
 
 public class OpenCV {
 
@@ -25,12 +26,29 @@ public class OpenCV {
         return Imgcodecs.imread(filename, flags);
     }
 
-    static Core.MinMaxLocResult match(Mat image, Mat templ) {
+    static Mat readMask(String filename) {
+        ArrayList<Mat> mv = new ArrayList<>();
+        Core.split(Imgcodecs.imread(filename, Imgcodecs.IMREAD_UNCHANGED), mv);
+        if (mv.size() == 4) {
+            return mv.get(3);
+        }
+        return null;
+    }
+
+    static Core.MinMaxLocResult match(Mat image, Mat templ, Mat mask) {
         int resultCols = image.cols() - templ.cols() + 1;
         int resultRows = image.rows() - templ.rows() + 1;
         Mat result = new Mat(resultRows, resultCols, CvType.CV_32FC1);
-        Imgproc.matchTemplate(image, templ, result, Imgproc.TM_CCOEFF_NORMED);
+        if (mask != null) {
+            Imgproc.matchTemplate(image, templ, result, Imgproc.TM_CCOEFF_NORMED, mask);
+        } else {
+            Imgproc.matchTemplate(image, templ, result, Imgproc.TM_CCOEFF_NORMED);
+        }
         return Core.minMaxLoc(result);
+    }
+
+    static void write(String filename, Mat mat) {
+        Imgcodecs.imwrite(filename, mat);
     }
 
     @SneakyThrows
