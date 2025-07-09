@@ -39,6 +39,7 @@
             <groupId>io.github.kingpulse</groupId>
             <artifactId>xdotool-java</artifactId>
             <version>1.2</version>
+            <optional>true</optional>
         </dependency>
     </dependencies>
 
