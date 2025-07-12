@@ -16,8 +16,8 @@ public class Launcher {
         }
         Scanner scanner = new Scanner(System.in);
         String prompt = games.entrySet().stream().sorted(Map.Entry.comparingByKey())
-                .map(e -> "输入'%s'选择 %s 小游戏".formatted(e.getKey(), e.getValue().name()))
-                .collect(Collectors.joining("\n或", "请", ""));
+                .map(e -> I18n.t("launcher_prompt").formatted(e.getKey(), e.getValue().name()))
+                .collect(Collectors.joining(I18n.t("launcher_prompt_del"), I18n.t("launcher_prompt_pre"), ""));
         MiniGame miniGame;
         //noinspection ConditionalBreakInInfiniteLoop
         while (true) {
@@ -27,14 +27,14 @@ public class Launcher {
                 break;
             }
         }
-        System.out.printf("%s 支持以下参数设置：%n", miniGame.name());
+        System.out.printf(I18n.t("launcher_param"), miniGame.name());
         miniGame.paramPrompt().forEach(System.out::println);
-        System.out.println("请输入程序参数，空格分隔多个参数。留空并回车以使用默认值");
+        System.out.println(I18n.t("launcher_input"));
 
         String input = scanner.nextLine();
         scanner.close();
         String cmdline = ProcessHandle.current().info().commandLine().orElse("java -jar arcade.jar");
-        System.out.printf("下次可以通过参数启动：%s %s %s%n", cmdline, miniGame.name(), input);
+        System.out.printf(I18n.t("launcher_cmd"), cmdline, miniGame.name(), input);
         miniGame.run(input.split(" "));
     }
 

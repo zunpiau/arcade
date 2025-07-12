@@ -41,7 +41,7 @@ public abstract class Env {
         } else if (os.contains("windows")) {
             instance = new Win();
         } else {
-            System.err.println("仅支持Windows和Linux平台");
+            System.err.println(I18n.t("env_windows_or_linux"));
             System.exit(4);
             throw new RuntimeException();
         }
@@ -134,13 +134,13 @@ public abstract class Env {
         @SneakyThrows
         public Win() {
             if (!Advapi32Util.isCurrentProcessElevated()) {
-                System.err.println("请以管理员身份运行 CMD/PowerShell");
+                System.err.println(I18n.t("env_admin"));
                 System.exit(2);
             }
             String windowTitle = System.getProperty(WINDOW_TITLE_KEY, "NIKKE");
             window = user32.FindWindow("UnityWndClass", windowTitle);
             if (window == null) {
-                System.err.println("根据窗口标题[" + windowTitle + "]找不到进程，请确认是否启动");
+                System.err.printf(I18n.t("env_window_not_found"), windowTitle);
                 System.exit(1);
             }
             WinDef.RECT rect = new WinDef.RECT();
@@ -148,17 +148,17 @@ public abstract class Env {
             int width = rect.right - rect.left;
             int height = rect.bottom - rect.top;
             if (width != 1920 || height != 1080) {
-                System.out.println("1080P屏幕请以全屏幕模式运行；否则使用视窗模式，画面比例选择为16:9");
-                System.out.println("正在尝试缩放窗口...");
+                System.out.println(I18n.t("env_resolution_hints"));
+                System.out.println(I18n.t("env_try_scale"));
                 user32.MoveWindow(window, 0, 0, 1920, 1080, true);
                 TimeUnit.MILLISECONDS.sleep(10);
                 user32.GetClientRect(window, rect);
                 user32.MoveWindow(window, 0, 0, 1920 + 1920 - rect.right, 1080 + 1080 - rect.bottom, true);
                 user32.GetClientRect(window, rect);
-                System.out.println("当前分辨率：" + rect.right + "x" + rect.bottom);
+                System.out.printf(I18n.t("env_current_resolution"), rect.right, rect.bottom);
             }
 
-            System.out.println("本窗口将自动置底...");
+            System.out.println(I18n.t("env_window_bottom"));
             TimeUnit.SECONDS.sleep(3);
             IntByReference processId = new IntByReference();
             user32.GetWindowThreadProcessId(window, processId);

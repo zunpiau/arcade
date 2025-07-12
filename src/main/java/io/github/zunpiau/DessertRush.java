@@ -22,9 +22,9 @@ public class DessertRush implements MiniGame {
 
     @SneakyThrows
     public void run(String[] args) {
-        int ROUND_MS = Util.parseArg(args,  0, 10, 500, 220);
-        int BURST_MS = Util.parseArg(args,  1, 1, 100, 10);
-        int BURST_TIMES = Util.parseArg(args,  2, 1, 50, 10);
+        int ROUND_MS = Util.parseArg(args, 0, 10, 500, 220);
+        int BURST_MS = Util.parseArg(args, 1, 1, 100, 10);
+        int BURST_TIMES = Util.parseArg(args, 2, 1, 50, 10);
 
         Map<Type, List<ImgTemplate>> templates = setupTemplate();
         Env env = Env.getInstance();
@@ -32,7 +32,7 @@ public class DessertRush implements MiniGame {
             Util.setupDebugDir(DEBUG_DIR, Result.class);
         }
 
-        System.out.println("正在检测游戏开始...");
+        System.out.println(I18n.t("game_detect"));
         int i = 0, maxDetect = 200;
         while (++i < maxDetect) {
             byte[] capture = env.capture(650, 0, 100, 100);
@@ -43,11 +43,11 @@ public class DessertRush implements MiniGame {
             TimeUnit.MILLISECONDS.sleep(ROUND_MS);
         }
         if (i == maxDetect) {
-            System.out.println("检测超时，自动退出");
+            System.out.println(I18n.t("game_detect_ot"));
             System.exit(1);
         }
 
-        System.out.println("游戏开始");
+        System.out.println(I18n.t("game_start"));
         boolean paused = false, has_burst = false;
         //noinspection InfiniteLoopStatement
         while (true) {
@@ -71,7 +71,7 @@ public class DessertRush implements MiniGame {
             }
             if (result != null) {
                 if (paused) {
-                    System.out.println("游戏恢复");
+                    System.out.println(I18n.t("game_resumed"));
                 }
                 paused = false;
                 env.press(result.key);
@@ -89,7 +89,7 @@ public class DessertRush implements MiniGame {
 
             boolean pause = match(mat, templates.get(Type.pause)) != null;
             if (pause && !paused) {
-                System.out.println("游戏暂停");
+                System.out.println(I18n.t("game_paused"));
             }
             paused = pause;
             if (pause) {
@@ -98,10 +98,10 @@ public class DessertRush implements MiniGame {
             }
             if (match(mat, templates.get(Type.end)) != null) {
                 int timeout = 5;
-                System.out.printf("回合结束，将在%d秒后进入下一回合。按下 Ctrl+C 或者关闭窗口以结束脚本\n", timeout);
+                System.out.printf(I18n.t("game_next_round_hints"), timeout);
                 TimeUnit.SECONDS.sleep(timeout);
                 env.click(1052, 714);
-                System.out.println("进入下一回合");
+                System.out.println(I18n.t("game_next_round"));
                 TimeUnit.SECONDS.sleep(3);
                 continue;
             }
@@ -150,7 +150,7 @@ public class DessertRush implements MiniGame {
 
     @Override
     public List<String> paramPrompt() {
-        return List.of("点击间隔（毫秒）\t默认：200", "爆裂期间点击间隔（毫秒）\t默认：10", "爆裂期间点击次数\t默认：10");
+        return List.of(I18n.t("dr_prompt_1"), I18n.t("dr_prompt_2"), I18n.t("dr_prompt_3"));
     }
 
     private record ImgTemplate(String filename, Mat img, Mat mask, Type type) {

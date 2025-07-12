@@ -33,7 +33,7 @@ public class GiftFactory implements MiniGame {
             Util.setupDebugDir(DEBUG_DIR, Type.class);
         }
 
-        System.out.println("正在检测游戏开始...");
+        System.out.println(I18n.t("game_detect"));
         int i = 0, maxDetect = 200;
         while (++i < maxDetect) {
             byte[] capture = env.capture(0, 0, 145, 85);
@@ -46,11 +46,11 @@ public class GiftFactory implements MiniGame {
             TimeUnit.MILLISECONDS.sleep(ROUND_MS);
         }
         if (i == maxDetect) {
-            System.out.println("检测超时，自动退出");
+            System.out.println(I18n.t("game_detect_ot"));
             System.exit(1);
         }
 
-        System.out.println("游戏开始");
+        System.out.println(I18n.t("game_start"));
         long lastRound, lastBurst = 0;
         boolean paused = false;
         //noinspection InfiniteLoopStatement
@@ -63,9 +63,9 @@ public class GiftFactory implements MiniGame {
             writeDebug(type, result.template, result.val, capture);
 
             if (type != Type.pause && paused) {
-                System.out.println("游戏恢复");
+                System.out.println(I18n.t("game_resumed"));
             } else if (type == Type.pause && !paused) {
-                System.out.println("游戏暂停");
+                System.out.println(I18n.t("game_paused"));
             }
             paused = type == Type.pause;
             switch (type) {
@@ -73,22 +73,20 @@ public class GiftFactory implements MiniGame {
                     if (lastRound - lastBurst < 5000) {
                         env.press("A");
                     } else {
-                        System.out.println("BURST 开始");
                         do {
                             env.press("A");
                             TimeUnit.MILLISECONDS.sleep(BURST_INTERVAL);
                         } while (System.currentTimeMillis() - lastRound <= BURST_MS);
                         lastBurst = System.currentTimeMillis();
-                        System.out.println("BURST 结束");
                         continue;
                     }
                 }
                 case end -> {
                     int timeout = lastBurst == 0 ? 1 : 5;
-                    System.out.printf("回合结束，将在%d秒后进入下一回合。按下 Ctrl+C 或者关闭窗口以结束脚本\n", timeout);
+                    System.out.printf(I18n.t("game_next_round_hints"), timeout);
                     TimeUnit.SECONDS.sleep(timeout);
                     env.click(1052, 714);
-                    System.out.println("进入下一回合");
+                    System.out.println(I18n.t("game_next_round"));
                     TimeUnit.SECONDS.sleep(3);
                     continue;
                 }
@@ -152,7 +150,7 @@ public class GiftFactory implements MiniGame {
 
     @Override
     public List<String> paramPrompt() {
-        return List.of("每回合时间（毫秒）\t默认：250", "爆裂期间点击间隔（毫秒）\t默认：2");
+        return List.of(I18n.t("gf_prompt_1"), I18n.t("gf_prompt_2"));
     }
 
     private record ImgTemplate(String filename, Mat img, Type type) {
