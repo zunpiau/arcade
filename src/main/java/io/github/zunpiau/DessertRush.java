@@ -13,7 +13,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-public class DessertRush {
+public class DessertRush implements MiniGame {
 
     private static final Path DEBUG_DIR = Paths.get("dessertRush", "debug");
     private static final boolean DEBUG = Boolean.getBoolean("arcade.debug");
@@ -21,7 +21,7 @@ public class DessertRush {
     private static int COUNTER = 0;
 
     @SneakyThrows
-    public static void main(String[] args) {
+    public void run(String[] args) {
         int ROUND_MS = Util.parseArg(args,  0, 10, 500, 220);
         int BURST_MS = Util.parseArg(args,  1, 1, 100, 10);
         int BURST_TIMES = Util.parseArg(args,  2, 1, 50, 10);
@@ -141,6 +141,16 @@ public class DessertRush {
             }
         }
         return null;
+    }
+
+    @Override
+    public String name() {
+        return "DessertRush";
+    }
+
+    @Override
+    public List<String> paramPrompt() {
+        return List.of("点击间隔（毫秒）\t默认：200", "爆裂期间点击间隔（毫秒）\t默认：10", "爆裂期间点击次数\t默认：10");
     }
 
     private record ImgTemplate(String filename, Mat img, Mat mask, Type type) {

@@ -12,14 +12,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-public class GiftFactory {
+public class GiftFactory implements MiniGame {
 
     private static final Path DEBUG_DIR = Paths.get("giftFactory", "debug");
     private static final boolean DEBUG = Boolean.getBoolean("arcade.debug");
 
     private static int COUNTER = 0;
 
-    public static void main(String[] args) throws InterruptedException {
+    @SneakyThrows
+    public void run(String[] args) {
         int ROUND_MS = Util.parseArg(args, 0, 100, 500, 250);
         int BURST_MS = 5000 - ROUND_MS / 2;
         int BURST_INTERVAL = Util.parseArg(args, 1, 1, 12, 2);
@@ -142,6 +143,16 @@ public class GiftFactory {
         }
         String filename = "%05d_%s_%s_%.3f.bmp".formatted(COUNTER++, template.type.name(), template.filename, val);
         Files.write(DEBUG_DIR.resolve(type.name()).resolve(filename), capture);
+    }
+
+    @Override
+    public String name() {
+        return "GiftFactory";
+    }
+
+    @Override
+    public List<String> paramPrompt() {
+        return List.of("每回合时间（毫秒）\t默认：250", "爆裂期间点击间隔（毫秒）\t默认：2");
     }
 
     private record ImgTemplate(String filename, Mat img, Type type) {

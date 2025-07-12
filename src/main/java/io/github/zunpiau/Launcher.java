@@ -1,38 +1,41 @@
 package io.github.zunpiau;
 
-import java.lang.invoke.MethodHandles;
-import java.lang.invoke.MethodType;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.Scanner;
+import java.util.stream.Collectors;
 
 public class Launcher {
 
-    public static void main(String[] args) throws Throwable {
-        Map<String, String> names = Map.of("a", "GiftFactory", "b", "DessertRush");
+    public static void main(String[] args) {
+        Map<String, MiniGame> games = Map.of("a", new GiftFactory(), "b", new DessertRush());
         if (args.length > 0) {
-            launch(names.getOrDefault(args[0], args[0]), Arrays.copyOfRange(args, 1, args.length));
+            games.values().stream().filter(e -> e.name().equals(args[0]))
+                    .findFirst().orElse(games.get(args[0]))
+                    .run(Arrays.copyOfRange(args, 1, args.length));
         }
         Scanner scanner = new Scanner(System.in);
-        String name;
+        String prompt = games.entrySet().stream().sorted(Map.Entry.comparingByKey())
+                .map(e -> "输入'%s'选择 %s 小游戏".formatted(e.getKey(), e.getValue().name()))
+                .collect(Collectors.joining("\n或", "请", ""));
+        MiniGame miniGame;
         //noinspection ConditionalBreakInInfiniteLoop
         while (true) {
-            System.out.println("请输入'a'选择 Gift Factory 小游戏\n或'b'选择 Dessert Rush 小游戏");
-            name = names.get(scanner.nextLine());
-            if (name != null) {
+            System.out.println(prompt);
+            miniGame = games.get(scanner.nextLine());
+            if (miniGame != null) {
                 break;
             }
         }
-        System.out.println("请输入程序参数，空格分隔多个参数。留空以使用默认值");
+        System.out.printf("%s 支持以下参数设置：%n", miniGame.name());
+        miniGame.paramPrompt().forEach(System.out::println);
+        System.out.println("请输入程序参数，空格分隔多个参数。留空并回车以使用默认值");
+
         String input = scanner.nextLine();
         scanner.close();
-        launch(name, input.split(" "));
-    }
-
-    private static void launch(String name, String[] args) throws Throwable {
-        Class<?> game = Class.forName(Launcher.class.getPackage().getName() + '.' + name);
-        MethodHandles.lookup().findStatic(game, "main", MethodType.methodType(void.class, String[].class))
-                .invoke((Object) args);
+        String cmdline = ProcessHandle.current().info().commandLine().orElse("java -jar arcade.jar");
+        System.out.printf("下次可以通过参数启动：%s %s %s%n", cmdline, miniGame.name(), input);
+        miniGame.run(input.split(" "));
     }
 
 }
